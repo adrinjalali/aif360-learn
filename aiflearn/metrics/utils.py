@@ -1,8 +1,4 @@
 """This is the helper script for implementing metrics."""
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import numpy as np
 
@@ -43,6 +39,7 @@ def compute_boolean_conditioning_vector(X, feature_names, condition=None):
 
     return overall_cond
 
+
 def compute_num_instances(X, w, feature_names, condition=None):
     """Compute the number of instances, :math:`n`, conditioned on the protected
     attribute(s).
@@ -63,27 +60,32 @@ def compute_num_instances(X, w, feature_names, condition=None):
 
     return np.sum(w[cond_vec], dtype=np.float64)
 
+
 def compute_num_pos_neg(X, y, w, feature_names, label, condition=None):
     """Compute the number of positives, :math:`P`, or negatives, :math:`N`,
     optionally conditioned on protected attributes.
 
-    Args:
-        X (numpy.ndarray): Dataset features.
-        y (numpy.ndarray): Label vector.
-        w (numpy.ndarray): Instance weight vector.
-        feature_names (list): Names of the features.
-        label (float): Value of label (unfavorable/positive or
-            unfavorable/negative).
-        condition (list(dict)): Same format as
-            :func:`compute_boolean_conditioning_vector`.
+    Paramaters
+    ----------
+    X (numpy.ndarray): Dataset features.
+    y (numpy.ndarray): Label vector.
+    w (numpy.ndarray): Instance weight vector.
+    feature_names (list): Names of the features.
+    label (float): Value of label (unfavorable/positive or
+        unfavorable/negative).
+    condition (list(dict)): Same format as
+        :func:`compute_boolean_conditioning_vector`.
 
-    Returns:
-        int: Number of positives/negatives (optionally conditioned)
+    Returns
+    -------
+    float: Number (or some of weights) of positives/negatives
+        (optionally conditioned)
     """
     y = y.ravel()
     cond_vec = compute_boolean_conditioning_vector(X, feature_names,
         condition=condition)
     return np.sum(w[np.logical_and(y == label, cond_vec)], dtype=np.float64)
+
 
 def compute_num_TF_PN(X, y_true, y_pred, w, feature_names, favorable_label,
                       unfavorable_label, condition=None):
@@ -125,6 +127,7 @@ def compute_num_TF_PN(X, y_true, y_pred, w, feature_names, favorable_label,
         TN=np.sum(w[np.logical_and(y_true_neg, y_pred_neg)], dtype=np.float64),
         FN=np.sum(w[np.logical_and(y_true_pos, y_pred_neg)], dtype=np.float64)
     )
+
 
 def compute_num_gen_TF_PN(X, y_true, y_score, w, feature_names, favorable_label,
                     unfavorable_label, condition=None):
@@ -169,6 +172,7 @@ def compute_num_gen_TF_PN(X, y_true, y_score, w, feature_names, favorable_label,
         GFN=np.sum((w*(1.0-y_score))[y_true_pos], dtype=np.float64)
     )
 
+
 def compute_distance(X_orig, X_distort, X_prot, feature_names, dist_fun,
                      condition=None):
     """Compute the distance element-wise for two sets of vectors.
@@ -200,3 +204,16 @@ def compute_distance(X_orig, X_distort, X_prot, feature_names, dist_fun,
         distance[i] = dist_fun(X_orig[cond_vec][i], X_distort[cond_vec][i])
 
     return distance, cond_vec
+
+
+class _Scorer:
+    def __init__(self, metric_name, p_group, up_group):
+        self.metric_name = metric_name
+        self.p_group = p_group
+        self.up_group = up_group
+
+    def __call__(self, estimator, X, y, sample_weight=None):
+        pass
+
+def make_scorer(metric_name: str, p_group, up_group):
+    pass

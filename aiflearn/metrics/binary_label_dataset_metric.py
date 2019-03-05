@@ -1,10 +1,6 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
+from sklearn.utils import check_array
 
 from aiflearn.datasets import BinaryLabelDataset
 from aiflearn.metrics import DatasetMetric, utils
@@ -15,49 +11,69 @@ class BinaryLabelDatasetMetric(DatasetMetric):
     :obj:`~aiflearn.datasets.BinaryLabelDataset`.
     """
 
-    def __init__(self, dataset, unprivileged_groups=None, privileged_groups=None):
+    def __init__(self, X, y, col_names, sample_weights, pos_label, neg_label,
+                 up_groups=None, p_groups=None):
         """
-        Args:
-            dataset (BinaryLabelDataset): A BinaryLabelDataset.
-            privileged_groups (list(dict)): Privileged groups. Format is a list
-                of `dicts` where the keys are `protected_attribute_names` and
-                the values are values in `protected_attributes`. Each `dict`
-                element describes a single group. See examples for more details.
-            unprivileged_groups (list(dict)): Unprivileged groups in the same
-                format as `privileged_groups`.
+        Parameters
+        ----------
+        X : array((n, m))
+            The input array
+        y : array(shape=(n,))
+            Output values
+        col_names : list, 1d array
+            Column names
+        sample_weights: list, 1d array
+            Sample weights
+        pos_label : float
+            Positive/Favorable value of y
+        neg_label : float
+            Negative/unfavorable value of y
+        p_groups : list(dict)
+            Privileged groups. Format is a list
+            of `dicts` where the keys are `protected_attribute_names` and
+            the values are values in `protected_attributes`. Each `dict`
+            element describes a single group. See examples for more details.
+        p_groups : list(dict)
+            Unprivileged groups in the same
+            format as `privileged_groups`.
 
-        Raises:
-            TypeError: `dataset` must be a
-                :obj:`~aiflearn.datasets.BinaryLabelDataset` type.
+        Raises
+        ------
+        TypeError: `dataset` must be a
+            :obj:`~aiflearn.datasets.StructuredDataset` type.
+        ValueError: `privileged_groups` and `unprivileged_groups` must be
+            disjoint.
         """
-        if not isinstance(dataset, BinaryLabelDataset):
-            raise TypeError("'dataset' should be a BinaryLabelDataset")
-
-        # sets self.dataset, self.unprivileged_groups, self.privileged_groups
-        super(BinaryLabelDatasetMetric, self).__init__(dataset,
-            unprivileged_groups=unprivileged_groups,
-            privileged_groups=privileged_groups)
+        super().__init__(X, col_names, sample_weights,
+                         up_groups=up_groups, p_groups=p_groups)
+        self.y = check_array(y, ensure_2d=False)
+        self.pos_label = pos_label
+        self.neg_label = neg_label
 
     def num_positives(self, privileged=None):
         r"""Compute the number of positives,
         :math:`P = \sum_{i=1}^n \mathbb{1}[y_i = 1]`,
         optionally conditioned on protected attributes.
 
-        Args:
-            privileged (bool, optional): Boolean prescribing whether to
-                condition this metric on the `privileged_groups`, if `True`, or
-                the `unprivileged_groups`, if `False`. Defaults to `None`
-                meaning this metric is computed over the entire dataset.
+        Parameters
+        ----------
+        privileged : bool, optional
+            Boolean prescribing whether to
+            condition this metric on the `privileged_groups`, if `True`, or
+            the `unprivileged_groups`, if `False`. Defaults to `None`
+            meaning this metric is computed over the entire dataset.
 
-        Raises:
-            AttributeError: `privileged_groups` or `unprivileged_groups` must be
-                must be provided at initialization to condition on them.
+        Raises
+        ------
+        AttributeError: `privileged_groups` or `unprivileged_groups` must be
+            must be provided at initialization to condition on them.
         """
         condition = self._to_condition(privileged)
-        return utils.compute_num_pos_neg(self.dataset.protected_attributes,
-            self.dataset.labels, self.dataset.instance_weights,
-            self.dataset.protected_attribute_names,
-            self.dataset.favorable_label, condition=condition)
+        return utils.compute_num_pos_neg(
+            self.X,
+            self.y, self.sample_weights,
+            self.col_names,
+            self.pos_label, condition=condition)
 
     def num_negatives(self, privileged=None):
         r"""Compute the number of negatives,
@@ -75,10 +91,11 @@ class BinaryLabelDatasetMetric(DatasetMetric):
                 must be provided at initialization to condition on them.
         """
         condition = self._to_condition(privileged)
-        return utils.compute_num_pos_neg(self.dataset.protected_attributes,
-            self.dataset.labels, self.dataset.instance_weights,
-            self.dataset.protected_attribute_names,
-            self.dataset.unfavorable_label, condition=condition)
+        return utils.compute_num_pos_neg(
+            self.X,
+            self.y, self.sample_weights,
+            self.col_names,
+            self.neg_label, condition=condition)
 
     def base_rate(self, privileged=None):
         """Compute the base rate, :math:`Pr(Y = 1) = P/(P+N)`, optionally
@@ -129,9 +146,9 @@ class BinaryLabelDatasetMetric(DatasetMetric):
                International Conference on Machine Learning, 2013.
         """
 
-        X = self.dataset.features
+        X = self.X
         num_samples = X.shape[0]
-        y = self.dataset.labels
+        y = self.y
 
         # learn a KNN on the features
         nbrs = NearestNeighbors(n_neighbors, algorithm='ball_tree').fit(X)
@@ -145,7 +162,7 @@ class BinaryLabelDatasetMetric(DatasetMetric):
 
         return consistency
 
-    # ============================== ALIASES ===================================
+    # ============================== ALIASES ==================================
     def mean_difference(self):
         """Alias of :meth:`statistical_parity_difference`."""
         return self.statistical_parity_difference()

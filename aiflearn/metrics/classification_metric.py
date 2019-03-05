@@ -1,6 +1,7 @@
 from itertools import product
 
 import numpy as np
+from sklearn.utils import check_array
 
 from aiflearn.metrics import BinaryLabelDatasetMetric, utils
 from aiflearn.datasets import BinaryLabelDataset
@@ -13,66 +14,74 @@ class ClassificationMetric(BinaryLabelDatasetMetric):
     classification transformer (or similar).
     """
 
-    def __init__(self, dataset, classified_dataset,
-                 unprivileged_groups=None, privileged_groups=None):
+    def __init__(self, X, y_true, y_pred, col_names, sample_weights,
+                 pos_label, neg_label,
+                 up_groups=None, p_groups=None):
         """
-        Args:
-            dataset (BinaryLabelDataset): Dataset containing ground-truth
-                labels.
-            classified_dataset (BinaryLabelDataset): Dataset containing
-                predictions.
-            privileged_groups (list(dict)): Privileged groups. Format is a list
-                of `dicts` where the keys are `protected_attribute_names` and
-                the values are values in `protected_attributes`. Each `dict`
-                element describes a single group. See examples for more details.
-            unprivileged_groups (list(dict)): Unprivileged groups in the same
-                format as `privileged_groups`.
+        Parameters
+        ----------
+        X : array((n, m))
+            The input array
+        y_true : array(shape=(n,))
+            True output values
+        y_pred : array(shape=((n,))
+            Predicted outputs
+        col_names : list, 1d array
+            Column names
+        sample_weights: list, 1d array
+            Sample weights
+        pos_label : float
+            Positive/Favorable value of y
+        neg_label : float
+            Negative/unfavorable value of y
+        p_groups : list(dict)
+            Privileged groups. Format is a list
+            of `dicts` where the keys are `protected_attribute_names` and
+            the values are values in `protected_attributes`. Each `dict`
+            element describes a single group. See examples for more details.
+        p_groups : list(dict)
+            Unprivileged groups in the same
+            format as `privileged_groups`.
 
-        Raises:
-            TypeError: `dataset` and `classified_dataset` must be
-                :obj:`~aiflearn.datasets.BinaryLabelDataset` types.
+        Raises
+        ------
+        TypeError: `dataset` must be a
+            :obj:`~aiflearn.datasets.StructuredDataset` type.
+        ValueError: `privileged_groups` and `unprivileged_groups` must be
+            disjoint.
         """
-        if not isinstance(dataset, BinaryLabelDataset):
-            raise TypeError("'dataset' should be a BinaryLabelDataset")
-
-        # sets self.dataset, self.unprivileged_groups, self.privileged_groups
-        super(ClassificationMetric, self).__init__(dataset,
-            unprivileged_groups=unprivileged_groups,
-            privileged_groups=privileged_groups)
-
-        if isinstance(classified_dataset, BinaryLabelDataset):
-            self.classified_dataset = classified_dataset
-        else:
-            raise TypeError("'classified_dataset' should be a "
-                            "BinaryLabelDataset.")
-
-        # Verify if everything except the predictions and metadata are the same
-        # for the two datasets
-        with self.dataset.temporarily_ignore('labels', 'scores'):
-            if self.dataset != self.classified_dataset:
-                raise ValueError("The two datasets are expected to differ only "
-                                 "in 'labels' or 'scores'.")
+        super().__init__(X=X, y=y_true, col_names=col_names,
+                         sample_weights=sample_weights, pos_label=pos_label,
+                         neg_label=neg_label, up_groups=up_groups,
+                         p_groups=p_groups)
+        self.y_true = check_array(y_true, ensure_2d=False)
+        self.y_pred = check_array(y_pred, ensure_2d=False)
 
     def binary_confusion_matrix(self, privileged=None):
         """Compute the number of true/false positives/negatives, optionally
         conditioned on protected attributes.
 
-        Args:
-            privileged (bool, optional): Boolean prescribing whether to
-                condition this metric on the `privileged_groups`, if `True`, or
-                the `unprivileged_groups`, if `False`. Defaults to `None`
-                meaning this metric is computed over the entire dataset.
-        Returns:
-            dict: Number of true positives, false positives, true negatives,
+        Parameters
+        ----------
+        privileged : bool, optional
+            Boolean prescribing whether to
+            condition this metric on the `privileged_groups`, if `True`, or
+            the `unprivileged_groups`, if `False`. Defaults to `None`
+            meaning this metric is computed over the entire dataset.
+
+        Returns
+        -------
+        dict: Number of true positives, false positives, true negatives,
             false negatives (optionally conditioned).
         """
         condition = self._to_condition(privileged)
 
-        return utils.compute_num_TF_PN(self.dataset.protected_attributes,
-            self.dataset.labels, self.classified_dataset.labels,
-            self.dataset.instance_weights,
-            self.dataset.protected_attribute_names,
-            self.dataset.favorable_label, self.dataset.unfavorable_label,
+        return utils.compute_num_TF_PN(
+            self.X,
+            self.y_true, self.y_pred,
+            self.sample_weights,
+            self.col_names,
+            self.pos_label, self.neg_label,
             condition=condition)
 
     def generalized_binary_confusion_matrix(self, privileged=None):
@@ -80,23 +89,28 @@ class ClassificationMetric(BinaryLabelDatasetMetric):
         optionally conditioned on protected attributes. Generalized counts are
         based on scores and not on the hard predictions.
 
-        Args:
-            privileged (bool, optional): Boolean prescribing whether to
-                condition this metric on the `privileged_groups`, if `True`, or
-                the `unprivileged_groups`, if `False`. Defaults to `None`
-                meaning this metric is computed over the entire dataset.
-        Returns:
-            dict: Number of generalized true positives, generalized false
+        Parameters
+        ----------
+        privileged : bool, optional
+            Boolean prescribing whether to
+            condition this metric on the `privileged_groups`, if `True`, or
+            the `unprivileged_groups`, if `False`. Defaults to `None`
+            meaning this metric is computed over the entire dataset.
+
+        Returns
+        -------
+        dict: Number of generalized true positives, generalized false
             positives, generalized true negatives, generalized false negatives
             (optionally conditioned).
         """
         condition = self._to_condition(privileged)
 
-        return utils.compute_num_gen_TF_PN(self.dataset.protected_attributes,
-            self.dataset.labels, self.classified_dataset.scores,
-            self.dataset.instance_weights,
-            self.dataset.protected_attribute_names,
-            self.dataset.favorable_label, self.dataset.unfavorable_label,
+        return utils.compute_num_gen_TF_PN(
+            self.X,
+            self.y_true, self.y_pred,
+            self.sample_weights,
+            self.col_names,
+            self.pos_label, self.neg_label,
             condition=condition)
 
     def num_true_positives(self, privileged=None):
@@ -585,11 +599,11 @@ class ClassificationMetric(BinaryLabelDatasetMetric):
         condition = self._to_condition(privileged)
 
         return utils.compute_num_pos_neg(
-            self.classified_dataset.protected_attributes,
-            self.classified_dataset.labels,
-            self.classified_dataset.instance_weights,
-            self.classified_dataset.protected_attribute_names,
-            self.classified_dataset.favorable_label,
+            self.X,
+            self.y_pred,
+            self.sample_weights,
+            self.col_names,
+            self.pos_label,
             condition=condition)
 
     def num_pred_negatives(self, privileged=None):
@@ -608,11 +622,11 @@ class ClassificationMetric(BinaryLabelDatasetMetric):
         condition = self._to_condition(privileged)
 
         return utils.compute_num_pos_neg(
-            self.classified_dataset.protected_attributes,
-            self.classified_dataset.labels,
-            self.classified_dataset.instance_weights,
-            self.classified_dataset.protected_attribute_names,
-            self.classified_dataset.unfavorable_label,
+            self.X,
+            self.y_pred,
+            self.sample_weights,
+            self.col_names,
+            self.neg_label,
             condition=condition)
 
     def selection_rate(self, privileged=None):
@@ -668,11 +682,10 @@ class ClassificationMetric(BinaryLabelDatasetMetric):
                "A Unified Approach to Quantifying Algorithmic Unfairness: Measuring Individual and Group Unfairness via Inequality Indices,"
                ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, 2018.
         """
-        y_pred = self.classified_dataset.labels.ravel()
-        y_true = self.dataset.labels.ravel()
-        y_pred = (y_pred == self.classified_dataset.favorable_label).astype(
-            np.float64)
-        y_true = (y_true == self.dataset.favorable_label).astype(np.float64)
+        y_pred = self.y_pred
+        y_true = self.y_true
+        y_pred = (y_pred == self.pos_label).astype(np.float64)
+        y_true = (y_true == self.pos_label).astype(np.float64)
         b = 1 + y_pred - y_true
 
         if alpha == 1:
@@ -704,21 +717,20 @@ class ClassificationMetric(BinaryLabelDatasetMetric):
 
         for group in groups:
             classified_group = utils.compute_boolean_conditioning_vector(
-                self.classified_dataset.protected_attributes,
-                self.classified_dataset.protected_attribute_names,
+                self.X,
+                self.col_names,
                 condition=group)
             true_group = utils.compute_boolean_conditioning_vector(
-                self.dataset.protected_attributes,
-                self.dataset.protected_attribute_names,
+                self.X,
+                self.col_names,
                 condition=group)
             # ignore if there are no members of this group present
             if not np.any(true_group):
                 continue
-            y_pred = self.classified_dataset.labels[classified_group].ravel()
-            y_true = self.dataset.labels[true_group].ravel()
-            y_pred = (y_pred == self.classified_dataset.favorable_label).astype(
-                np.float64)
-            y_true = (y_true == self.dataset.favorable_label).astype(np.float64)
+            y_pred = self.y_pred[classified_group]
+            y_true = self.y_true[true_group]
+            y_pred = (y_pred == self.pos_label).astype(np.float64)
+            y_true = (y_true == self.pos_label).astype(np.float64)
             b[true_group] = np.mean(1 + y_pred - y_true)
 
         if alpha == 1:

@@ -27,10 +27,13 @@ def test_generalized_entropy_index():
     df = pd.DataFrame(data, columns=['feat', 'label'])
     df2 = pd.DataFrame(pred, columns=['feat', 'label'])
     bld = BinaryLabelDataset(df=df, label_names=['label'],
-        protected_attribute_names=['feat'])
+                             protected_attribute_names=['feat'])
     bld2 = BinaryLabelDataset(df=df2, label_names=['label'],
-        protected_attribute_names=['feat'])
-    cm = ClassificationMetric(bld, bld2)
+                              protected_attribute_names=['feat'])
+    cm = ClassificationMetric(bld.features, bld.labels, bld2.labels,
+                              bld.feature_names, bld.instance_names,
+                              bld.favorable_label, bld.unfavorable_label,
+                              bld.)
 
     assert cm.generalized_entropy_index() == 0.2
 
